@@ -1,6 +1,8 @@
 import os
 import mysql.connector
 from dotenv import load_dotenv
+import db_logger
+
 
 # Load environment variables from .env file
 load_dotenv()
@@ -156,11 +158,13 @@ def get_faculty_list(search_field="All Fields", search_text="", department_filte
         sql += " ORDER BY faculty_id ASC;"
         cursor.execute(sql, tuple(params))
         records = cursor.fetchall()
+        db_logger.notify_sql(sql, tuple(params), True, len(records))
 
         cursor.close()
         conn.close()
         return records
     except Exception as e:
+        db_logger.notify_sql(locals().get('sql', ''), locals().get('params', []), False, 0, str(e))
         print("Error fetching faculty list:", e)
         return []
 
@@ -200,11 +204,13 @@ def get_academic_list(search_field="All Fields", search_text=""):
         sql += " ORDER BY academic_id ASC;"
         cursor.execute(sql, tuple(params))
         records = cursor.fetchall()
+        db_logger.notify_sql(sql, tuple(params), True, len(records))
 
         cursor.close()
         conn.close()
         return records
     except Exception as e:
+        db_logger.notify_sql(locals().get('sql', ''), locals().get('params', []), False, 0, str(e))
         print("Error fetching academic list:", e)
         return []
 
@@ -249,11 +255,13 @@ def get_full_faculty_profile(faculty_id):
         """
         cursor.execute(sql, (faculty_id,))
         profile = cursor.fetchone()
+        db_logger.notify_sql(sql, (faculty_id,), True, 1 if profile else 0)
 
         cursor.close()
         conn.close()
         return profile
     except Exception as e:
+        db_logger.notify_sql(locals().get('sql', ''), (faculty_id,), False, 0, str(e))
         print("Error fetching full profile:", e)
         return None
 
@@ -356,12 +364,15 @@ def add_single_faculty(fac_data):
         )
         cursor.execute(sql, values)
         conn.commit()
+        db_logger.notify_sql(sql, values, True, cursor.rowcount)
         cursor.close()
         conn.close()
         return True, f"Faculty record '{fac_data['faculty_id']}' added successfully."
     except mysql.connector.Error as err:
+        db_logger.notify_sql(locals().get('sql', ''), locals().get('values', []), False, 0, err.msg)
         return False, f"MySQL Error: {err.msg}"
     except Exception as e:
+        db_logger.notify_sql(locals().get('sql', ''), locals().get('values', []), False, 0, str(e))
         return False, f"Error: {str(e)}"
 
 def update_single_faculty(fac_data):
@@ -386,12 +397,15 @@ def update_single_faculty(fac_data):
         )
         cursor.execute(sql, values)
         conn.commit()
+        db_logger.notify_sql(sql, values, True, cursor.rowcount)
         cursor.close()
         conn.close()
         return True, f"Faculty record '{fac_data['faculty_id']}' updated successfully."
     except mysql.connector.Error as err:
+        db_logger.notify_sql(locals().get('sql', ''), locals().get('values', []), False, 0, err.msg)
         return False, f"MySQL Error: {err.msg}"
     except Exception as e:
+        db_logger.notify_sql(locals().get('sql', ''), locals().get('values', []), False, 0, str(e))
         return False, f"Error: {str(e)}"
 
 def delete_single_faculty(faculty_id):
@@ -405,6 +419,7 @@ def delete_single_faculty(faculty_id):
         conn.commit()
 
         affected = cursor.rowcount
+        db_logger.notify_sql(sql, (faculty_id,), True, affected, is_cascade=True)
         cursor.close()
         conn.close()
 
@@ -413,8 +428,10 @@ def delete_single_faculty(faculty_id):
         else:
             return False, f"Record '{faculty_id}' not found."
     except mysql.connector.Error as err:
+        db_logger.notify_sql(locals().get('sql', ''), (faculty_id,), False, 0, err.msg)
         return False, f"MySQL Error: {err.msg}"
     except Exception as e:
+        db_logger.notify_sql(locals().get('sql', ''), (faculty_id,), False, 0, str(e))
         return False, f"Error: {str(e)}"
 
 # --- TABLE 2: FACULTY ACADEMIC CRUD OPERATIONS ---
@@ -448,12 +465,15 @@ def add_single_academic(aca_data):
         )
         cursor.execute(sql, values)
         conn.commit()
+        db_logger.notify_sql(sql, values, True, cursor.rowcount)
         cursor.close()
         conn.close()
         return True, f"Faculty Academic record '{aca_data['academic_id']}' added successfully."
     except mysql.connector.Error as err:
+        db_logger.notify_sql(locals().get('sql', ''), locals().get('values', []), False, 0, err.msg)
         return False, f"MySQL Error: {err.msg}"
     except Exception as e:
+        db_logger.notify_sql(locals().get('sql', ''), locals().get('values', []), False, 0, str(e))
         return False, f"Error: {str(e)}"
 
 def update_single_academic(aca_data):
@@ -478,12 +498,15 @@ def update_single_academic(aca_data):
         )
         cursor.execute(sql, values)
         conn.commit()
+        db_logger.notify_sql(sql, values, True, cursor.rowcount)
         cursor.close()
         conn.close()
         return True, f"Academic record '{aca_data['academic_id']}' updated successfully."
     except mysql.connector.Error as err:
+        db_logger.notify_sql(locals().get('sql', ''), locals().get('values', []), False, 0, err.msg)
         return False, f"MySQL Error: {err.msg}"
     except Exception as e:
+        db_logger.notify_sql(locals().get('sql', ''), locals().get('values', []), False, 0, str(e))
         return False, f"Error: {str(e)}"
 
 def delete_single_academic(academic_id):
@@ -497,6 +520,7 @@ def delete_single_academic(academic_id):
         conn.commit()
 
         affected = cursor.rowcount
+        db_logger.notify_sql(sql, (academic_id,), True, affected)
         cursor.close()
         conn.close()
 
@@ -505,6 +529,8 @@ def delete_single_academic(academic_id):
         else:
             return False, f"Academic record '{academic_id}' not found."
     except mysql.connector.Error as err:
+        db_logger.notify_sql(locals().get('sql', ''), (academic_id,), False, 0, err.msg)
         return False, f"MySQL Error: {err.msg}"
     except Exception as e:
+        db_logger.notify_sql(locals().get('sql', ''), (academic_id,), False, 0, str(e))
         return False, f"Error: {str(e)}"
