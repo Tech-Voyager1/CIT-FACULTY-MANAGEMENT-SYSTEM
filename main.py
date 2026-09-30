@@ -380,21 +380,31 @@ class CITFacultyApp(tk.Tk):
         lines.append(log_entry['sql'])
         lines.append("")
         if log_entry['success']:
-            lines.append("✓ Query executed successfully")
+            lines.append("\u2713 Query executed successfully")
             if log_entry.get('rows', 0) is not None:
                 lines.append(f"Rows affected/returned: {log_entry['rows']}")
             if log_entry.get('is_cascade'):
                 lines.append("Related faculty_academic record handled by foreign-key CASCADE.")
         else:
-            lines.append("✗ Query failed")
+            lines.append("\u2717 Query failed")
             lines.append(f"Reason: {log_entry['error']}")
         lines.append("-" * 60)
         lines.append("")
 
-        self.sql_text.config(state="normal")
-        self.sql_text.insert(tk.END, "\n".join(lines))
-        self.sql_text.see(tk.END)
-        self.sql_text.config(state="disabled")
+        text_block = "\n".join(lines)
+
+        # Schedule the widget update on the next Tkinter event loop tick.
+        # This safely decouples from dialog destroy() calls that may be in-flight.
+        def _update_widget():
+            try:
+                self.sql_text.config(state="normal")
+                self.sql_text.insert(tk.END, text_block)
+                self.sql_text.see(tk.END)
+                self.sql_text.config(state="disabled")
+            except tk.TclError:
+                pass  # widget destroyed — ignore
+
+        self.after(0, _update_widget)
 
     # -------------------------------------------------------------
     # TABLE SWITCHING & RECONFIGURATION LOGIC
@@ -1148,9 +1158,33 @@ class AdvancedQueryDialog(tk.Toplevel):
         self.conditions = []
         self.fac_fields = ['faculty_id', 'faculty_name', 'department', 'designation', 'email', 'phone', 'experience_years']
         self.aca_fields = ['academic_id', 'ug_qualification', 'pg_qualification', 'phd_qualification', 'research_interest', 'publication_count']
-        
+
+        # Known values for categorical fields (used to populate value dropdowns)
+        self.VALUE_OPTIONS = {
+            'department': [
+                'Computer Science and Engineering',
+                'Electronics and Communication Engineering',
+                'Electrical and Electronics Engineering',
+                'Mechanical Engineering',
+                'Civil Engineering',
+            ],
+            'designation': [
+                'Principal & Professor',
+                'Professor & Head',
+                'Professor',
+                'Associate Professor',
+                'Assistant Professor (Sr. Gr.)',
+                'Assistant Professor (Sl. Gr.)',
+                'Assistant Professor',
+            ],
+            'ug_qualification':  self._fetch_distinct('faculty_academic', 'ug_qualification'),
+            'pg_qualification':  self._fetch_distinct('faculty_academic', 'pg_qualification'),
+            'phd_qualification': self._fetch_distinct('faculty_academic', 'phd_qualification'),
+            'research_interest': self._fetch_distinct('faculty_academic', 'research_interest'),
+        }
+
         self.create_widgets()
-        
+
     def create_widgets(self):
         header = tk.Frame(self, bg="#003366", height=50, padx=15, pady=10)
         header.pack(fill=tk.X, side=tk.TOP)
@@ -1208,6 +1242,20 @@ class AdvancedQueryDialog(tk.Toplevel):
         
         self.add_condition_row()
         
+    def _fetch_distinct(self, table, column):
+        """Fetches distinct non-null values from a column for dropdown population."""
+        try:
+            import db as _db
+            conn = _db.get_connection()
+            cur = conn.cursor()
+            cur.execute(f"SELECT DISTINCT `{column}` FROM `{table}` WHERE `{column}` IS NOT NULL ORDER BY `{column}`;")
+            vals = [r[0] for r in cur.fetchall() if r[0]]
+            cur.close()
+            conn.close()
+            return vals
+        except Exception:
+            return []
+
     def on_scope_change(self, event=None):
         scope = self.table_scope_cb.get()
         if scope == "Faculty":
@@ -1216,19 +1264,37 @@ class AdvancedQueryDialog(tk.Toplevel):
             fields = self.fac_fields + self.aca_fields
         self.sort_field_cb.config(values=[""] + fields)
         self.sort_field_cb.set("")
-        
+
         for row in self.conditions:
             row['field_cb'].config(values=fields)
             if row['field_cb'].get() not in fields:
                 row['field_cb'].set(fields[0])
-                
+            self._refresh_val_widget(row)
+
+    def _refresh_val_widget(self, row):
+        """Updates the value Combobox options based on the currently selected field."""
+        field = row['field_cb'].get()
+        op = row['op_cb'].get()
+        val_cb = row['val_entry']  # it's actually a Combobox now
+
+        if op in ('IS NULL', 'IS NOT NULL'):
+            val_cb.config(state='disabled', values=[])
+            return
+
+        options = self.VALUE_OPTIONS.get(field, [])
+        val_cb.config(values=options)
+        if options:
+            val_cb.config(state='normal')   # editable combobox
+        else:
+            val_cb.config(state='normal')   # plain editable entry behaviour
+
     def add_condition_row(self):
         row_frame = tk.Frame(self.cond_list_frame, bg="#F4F6F9")
         row_frame.pack(fill=tk.X, pady=2)
-        
+
         scope = self.table_scope_cb.get()
         fields = self.fac_fields if scope == "Faculty" else self.fac_fields + self.aca_fields
-        
+
         logic_cb = ttk.Combobox(row_frame, values=["AND", "OR"], state="readonly", width=5)
         if not self.conditions:
             logic_cb.set("")
@@ -1236,35 +1302,44 @@ class AdvancedQueryDialog(tk.Toplevel):
         else:
             logic_cb.set("AND")
         logic_cb.pack(side=tk.LEFT, padx=2)
-        
+
         field_cb = ttk.Combobox(row_frame, values=fields, state="readonly", width=20)
         field_cb.set(fields[0])
         field_cb.pack(side=tk.LEFT, padx=2)
-        
+
         op_cb = ttk.Combobox(row_frame, values=["=", "!=", ">", "<", ">=", "<=", "LIKE", "IS NULL", "IS NOT NULL"], state="readonly", width=12)
         op_cb.set("=")
         op_cb.pack(side=tk.LEFT, padx=2)
-        
-        val_entry = ttk.Entry(row_frame, width=25)
-        val_entry.pack(side=tk.LEFT, padx=2)
-        
+
+        # Value widget: editable Combobox so categorical fields show a dropdown
+        # but user can still type custom values
+        initial_opts = self.VALUE_OPTIONS.get(fields[0], [])
+        val_cb = ttk.Combobox(row_frame, values=initial_opts, width=25)
+        val_cb.pack(side=tk.LEFT, padx=2)
+
         btn_del = ttk.Button(row_frame, text="X", width=3, command=lambda f=row_frame: self.remove_condition_row(f))
         btn_del.pack(side=tk.LEFT, padx=5)
-        
-        def on_op_change(event, entry=val_entry, cb=op_cb):
-            if cb.get() in ["IS NULL", "IS NOT NULL"]:
-                entry.config(state="disabled")
-            else:
-                entry.config(state="normal")
-        op_cb.bind("<<ComboboxSelected>>", on_op_change)
-        
-        self.conditions.append({
+
+        row_dict = {
             'frame': row_frame,
             'logic_cb': logic_cb,
             'field_cb': field_cb,
             'op_cb': op_cb,
-            'val_entry': val_entry
-        })
+            'val_entry': val_cb,   # key kept as val_entry for compatibility with run_query
+        }
+        self.conditions.append(row_dict)
+
+        # When field changes → refresh value dropdown options
+        def on_field_change(event, row=row_dict):
+            self._refresh_val_widget(row)
+            row['val_entry'].set('')   # clear stale value
+        field_cb.bind("<<ComboboxSelected>>", on_field_change)
+
+        # When operator changes → handle IS NULL / IS NOT NULL disabling
+        def on_op_change(event, row=row_dict):
+            self._refresh_val_widget(row)
+        op_cb.bind("<<ComboboxSelected>>", on_op_change)
+
         
     def remove_condition_row(self, frame):
         for cond in self.conditions:

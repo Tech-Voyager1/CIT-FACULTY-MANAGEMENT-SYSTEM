@@ -376,8 +376,9 @@ def add_single_faculty(fac_data):
             fac_data.get("experience_years")
         )
         cursor.execute(sql, values)
+        affected = cursor.rowcount
         conn.commit()
-        db_logger.notify_sql(sql, values, True, cursor.rowcount)
+        db_logger.notify_sql(sql, values, True, affected)
         cursor.close()
         conn.close()
         return True, f"Faculty record '{fac_data['faculty_id']}' added successfully."
@@ -409,8 +410,9 @@ def update_single_faculty(fac_data):
             fac_data["faculty_id"]
         )
         cursor.execute(sql, values)
+        affected = cursor.rowcount
         conn.commit()
-        db_logger.notify_sql(sql, values, True, cursor.rowcount)
+        db_logger.notify_sql(sql, values, True, affected)
         cursor.close()
         conn.close()
         return True, f"Faculty record '{fac_data['faculty_id']}' updated successfully."
@@ -477,8 +479,9 @@ def add_single_academic(aca_data):
             pub_cnt
         )
         cursor.execute(sql, values)
+        affected = cursor.rowcount
         conn.commit()
-        db_logger.notify_sql(sql, values, True, cursor.rowcount)
+        db_logger.notify_sql(sql, values, True, affected)
         cursor.close()
         conn.close()
         return True, f"Faculty Academic record '{aca_data['academic_id']}' added successfully."
@@ -510,8 +513,9 @@ def update_single_academic(aca_data):
             aca_data["academic_id"]
         )
         cursor.execute(sql, values)
+        affected = cursor.rowcount
         conn.commit()
-        db_logger.notify_sql(sql, values, True, cursor.rowcount)
+        db_logger.notify_sql(sql, values, True, affected)
         cursor.close()
         conn.close()
         return True, f"Academic record '{aca_data['academic_id']}' updated successfully."
