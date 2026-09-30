@@ -453,7 +453,7 @@ class CITFacultyApp(tk.Tk):
             self.tree.delete(item)
 
         if self.active_table == "faculty":
-            cols = ("faculty_id", "faculty_name", "department", "designation", "email", "phone", "joining_date", "experience_years")
+            cols = ("faculty_id", "faculty_name", "department", "designation", "email", "phone", "experience_years")
             self.tree.config(columns=cols)
 
             self.tree.heading("faculty_id", text="Faculty ID", anchor=tk.CENTER)
@@ -462,7 +462,6 @@ class CITFacultyApp(tk.Tk):
             self.tree.heading("designation", text="Designation", anchor=tk.W)
             self.tree.heading("email", text="Email Address", anchor=tk.W)
             self.tree.heading("phone", text="Phone", anchor=tk.CENTER)
-            self.tree.heading("joining_date", text="Joining Date", anchor=tk.CENTER)
             self.tree.heading("experience_years", text="Experience", anchor=tk.CENTER)
 
             self.tree.column("faculty_id", width=90, minwidth=80, anchor=tk.CENTER)
@@ -470,8 +469,7 @@ class CITFacultyApp(tk.Tk):
             self.tree.column("department", width=220, minwidth=160, anchor=tk.W)
             self.tree.column("designation", width=170, minwidth=130, anchor=tk.W)
             self.tree.column("email", width=190, minwidth=150, anchor=tk.W)
-            self.tree.column("phone", width=110, minwidth=90, anchor=tk.CENTER)
-            self.tree.column("joining_date", width=100, minwidth=80, anchor=tk.CENTER)
+            self.tree.column("phone", width=130, minwidth=100, anchor=tk.CENTER)
             self.tree.column("experience_years", width=80, minwidth=60, anchor=tk.CENTER)
         else:
             cols = ("academic_id", "faculty_id", "ug_qualification", "pg_qualification", "phd_qualification", "research_interest", "publication_count")
@@ -547,7 +545,6 @@ class CITFacultyApp(tk.Tk):
                     r["designation"],
                     r["email"] or "",
                     r["phone"] or "",
-                    str(r["joining_date"]) if r["joining_date"] else "",
                     str(r.get("experience_years", "")) if r.get("experience_years") is not None else ""
                 ))
             self.status_var.set(f"Loaded {len(records)} records from MySQL 'faculty' table.")
@@ -753,13 +750,9 @@ class AddFacultyDialog(tk.Toplevel):
         self.phone_entry = ttk.Entry(form, width=34)
         self.phone_entry.grid(row=5, column=1, pady=3, sticky=tk.W)
 
-        tk.Label(form, text="Joining Date (YYYY-MM-DD)", font=("Segoe UI", 9), bg="#F4F6F9").grid(row=6, column=0, sticky=tk.W, pady=3)
-        self.joining_entry = ttk.Entry(form, width=34)
-        self.joining_entry.grid(row=6, column=1, pady=3, sticky=tk.W)
-
-        tk.Label(form, text="Experience (Years)", font=("Segoe UI", 9), bg="#F4F6F9").grid(row=7, column=0, sticky=tk.W, pady=3)
+        tk.Label(form, text="Experience (Years)", font=("Segoe UI", 9), bg="#F4F6F9").grid(row=6, column=0, sticky=tk.W, pady=3)
         self.exp_entry = ttk.Entry(form, width=34)
-        self.exp_entry.grid(row=7, column=1, pady=3, sticky=tk.W)
+        self.exp_entry.grid(row=6, column=1, pady=3, sticky=tk.W)
 
         btn_bar = tk.Frame(self, bg="#F4F6F9", pady=10, padx=20)
         btn_bar.pack(fill=tk.X, side=tk.BOTTOM)
@@ -783,16 +776,22 @@ class AddFacultyDialog(tk.Toplevel):
     def populate_fields(self):
         r = self.record
         self.dept_cb.set(r.get("department", ""))
+        # id_entry is disabled in EDIT mode — temporarily enable to populate, then disable
+        self.id_entry.config(state="normal")
         self.id_entry.insert(0, r.get("faculty_id", ""))
+        self.id_entry.config(state="disabled")
         self.name_entry.insert(0, r.get("faculty_name", ""))
         self.desig_cb.set(r.get("designation", ""))
         self.email_entry.insert(0, r.get("email", "") or "")
         self.phone_entry.insert(0, r.get("phone", "") or "")
-        self.joining_entry.insert(0, str(r.get("joining_date", "")) if r.get("joining_date") else "")
         self.exp_entry.insert(0, str(r.get("experience_years", "")) if r.get("experience_years") is not None else "")
 
     def on_save(self):
-        fac_id = self.id_entry.get().strip()
+        # In EDIT mode id_entry is disabled; read from the original record
+        if self.mode == "EDIT":
+            fac_id = self.record.get("faculty_id", "").strip()
+        else:
+            fac_id = self.id_entry.get().strip()
         fac_name = self.name_entry.get().strip()
         dept = self.dept_cb.get().strip()
         desig = self.desig_cb.get().strip()
@@ -812,7 +811,6 @@ class AddFacultyDialog(tk.Toplevel):
             "designation": desig,
             "email": self.email_entry.get().strip(),
             "phone": self.phone_entry.get().strip(),
-            "joining_date": self.joining_entry.get().strip(),
             "experience_years": exp_val if exp_val else None
         }
 
@@ -1004,7 +1002,6 @@ class FacultyProfileDialog(tk.Toplevel):
             ("Designation:", p.get("designation")),
             ("Email Address:", p.get("email") or "N/A"),
             ("Phone Number:", p.get("phone") or "N/A"),
-            ("Joining Date:", str(p.get("joining_date")) if p.get("joining_date") else "N/A"),
             ("Experience (Years):", str(p.get("experience_years")) if p.get("experience_years") is not None else "N/A")
         ]
 
@@ -1149,7 +1146,7 @@ class AdvancedQueryDialog(tk.Toplevel):
         self.grab_set()
         
         self.conditions = []
-        self.fac_fields = ['faculty_id', 'faculty_name', 'department', 'designation', 'email', 'phone', 'joining_date', 'experience_years']
+        self.fac_fields = ['faculty_id', 'faculty_name', 'department', 'designation', 'email', 'phone', 'experience_years']
         self.aca_fields = ['academic_id', 'ug_qualification', 'pg_qualification', 'phd_qualification', 'research_interest', 'publication_count']
         
         self.create_widgets()
@@ -1353,7 +1350,6 @@ class AdvancedQueryDialog(tk.Toplevel):
                     r.get("designation", ""),
                     r.get("email", "") or "",
                     r.get("phone", "") or "",
-                    str(r.get("joining_date", "")) if r.get("joining_date") else "",
                     str(r.get("experience_years", "")) if r.get("experience_years") is not None else ""
                 ))
 

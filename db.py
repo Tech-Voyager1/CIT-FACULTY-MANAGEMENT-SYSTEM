@@ -143,7 +143,7 @@ def get_faculty_list(search_field="All Fields", search_text="", department_filte
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
 
-        sql = "SELECT faculty_id, faculty_name, department, designation, email, phone, joining_date, experience_years FROM faculty WHERE 1=1"
+        sql = "SELECT faculty_id, faculty_name, department, designation, email, phone, experience_years FROM faculty WHERE 1=1"
         params = []
 
         if department_filter and department_filter != "All":
@@ -255,7 +255,6 @@ def get_full_faculty_profile(faculty_id):
                 f.designation,
                 f.email,
                 f.phone,
-                f.joining_date,
                 f.experience_years,
                 a.academic_id,
                 a.ug_qualification,
@@ -364,8 +363,8 @@ def add_single_faculty(fac_data):
         cursor = conn.cursor()
 
         sql = """
-            INSERT INTO faculty (faculty_id, faculty_name, department, designation, email, phone, joining_date, experience_years)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+            INSERT INTO faculty (faculty_id, faculty_name, department, designation, email, phone, experience_years)
+            VALUES (%s, %s, %s, %s, %s, %s, %s);
         """
         values = (
             fac_data["faculty_id"],
@@ -374,7 +373,6 @@ def add_single_faculty(fac_data):
             fac_data["designation"],
             fac_data["email"] if fac_data["email"] else None,
             fac_data["phone"] if fac_data["phone"] else None,
-            fac_data["joining_date"] if fac_data["joining_date"] else None,
             fac_data.get("experience_years")
         )
         cursor.execute(sql, values)
@@ -398,7 +396,7 @@ def update_single_faculty(fac_data):
 
         sql = """
             UPDATE faculty 
-            SET faculty_name = %s, department = %s, designation = %s, email = %s, phone = %s, joining_date = %s, experience_years = %s
+            SET faculty_name = %s, department = %s, designation = %s, email = %s, phone = %s, experience_years = %s
             WHERE faculty_id = %s;
         """
         values = (
@@ -407,7 +405,6 @@ def update_single_faculty(fac_data):
             fac_data["designation"],
             fac_data["email"] if fac_data["email"] else None,
             fac_data["phone"] if fac_data["phone"] else None,
-            fac_data["joining_date"] if fac_data["joining_date"] else None,
             fac_data.get("experience_years"),
             fac_data["faculty_id"]
         )
@@ -558,7 +555,7 @@ def execute_advanced_query(query_type, conditions, sort_by=None, sort_order="ASC
         
         # Determine if JOIN is needed
         # Fields mapping
-        fac_fields = ['faculty_id', 'faculty_name', 'department', 'designation', 'email', 'phone', 'joining_date', 'experience_years']
+        fac_fields = ['faculty_id', 'faculty_name', 'department', 'designation', 'email', 'phone', 'experience_years']
         aca_fields = ['academic_id', 'ug_qualification', 'pg_qualification', 'phd_qualification', 'research_interest', 'publication_count']
         
         needs_join = False
@@ -579,7 +576,7 @@ def execute_advanced_query(query_type, conditions, sort_by=None, sort_order="ASC
                 base_sql = "SELECT COUNT(*) as cnt FROM faculty f"
         else:
             if needs_join:
-                base_sql = """SELECT f.faculty_id, f.faculty_name, f.department, f.designation, f.email, f.phone, f.joining_date, f.experience_years,
+                base_sql = """SELECT f.faculty_id, f.faculty_name, f.department, f.designation, f.email, f.phone, f.experience_years,
                                      a.academic_id, a.ug_qualification, a.pg_qualification, a.phd_qualification, a.research_interest, a.publication_count
                               FROM faculty f JOIN faculty_academic a ON f.faculty_id = a.faculty_id"""
             else:
