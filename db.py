@@ -43,8 +43,21 @@ def setup_database_schema():
         cursor.execute("SHOW TABLES LIKE 'faculty';")
         faculty_exists = cursor.fetchone()
 
+        
         cursor.execute("SHOW TABLES LIKE 'faculty_academic';")
         academic_exists = cursor.fetchone()
+
+        if faculty_exists:
+            cursor.execute("SHOW COLUMNS FROM faculty LIKE 'experience_years';")
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE faculty ADD COLUMN experience_years INT;")
+                cursor.execute("UPDATE faculty SET experience_years = 11 WHERE designation LIKE 'Assistant Professor%';")
+                cursor.execute("UPDATE faculty SET experience_years = 15 WHERE designation = 'Associate Professor';")
+                cursor.execute("UPDATE faculty SET experience_years = 18 WHERE designation = 'Professor';")
+                cursor.execute("UPDATE faculty SET experience_years = 20 WHERE designation IN ('Professor & Head', 'Principal & Professor');")
+                cursor.execute("UPDATE faculty SET phone = NULL WHERE phone = '' OR phone = 'None' OR phone = 'Not Publicly Listed';")
+                conn.commit()
+
 
         if not faculty_exists or not academic_exists:
             # Execute schema.sql
@@ -130,7 +143,7 @@ def get_faculty_list(search_field="All Fields", search_text="", department_filte
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
 
-        sql = "SELECT faculty_id, faculty_name, department, designation, email, phone, joining_date FROM faculty WHERE 1=1"
+        sql = "SELECT faculty_id, faculty_name, department, designation, email, phone, joining_date, experience_years FROM faculty WHERE 1=1"
         params = []
 
         if department_filter and department_filter != "All":
@@ -243,6 +256,7 @@ def get_full_faculty_profile(faculty_id):
                 f.email,
                 f.phone,
                 f.joining_date,
+                f.experience_years,
                 a.academic_id,
                 a.ug_qualification,
                 a.pg_qualification,
@@ -350,8 +364,8 @@ def add_single_faculty(fac_data):
         cursor = conn.cursor()
 
         sql = """
-            INSERT INTO faculty (faculty_id, faculty_name, department, designation, email, phone, joining_date)
-            VALUES (%s, %s, %s, %s, %s, %s, %s);
+            INSERT INTO faculty (faculty_id, faculty_name, department, designation, email, phone, joining_date, experience_years)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
         """
         values = (
             fac_data["faculty_id"],
@@ -360,7 +374,8 @@ def add_single_faculty(fac_data):
             fac_data["designation"],
             fac_data["email"] if fac_data["email"] else None,
             fac_data["phone"] if fac_data["phone"] else None,
-            fac_data["joining_date"] if fac_data["joining_date"] else None
+            fac_data["joining_date"] if fac_data["joining_date"] else None,
+            fac_data.get("experience_years")
         )
         cursor.execute(sql, values)
         conn.commit()
@@ -383,7 +398,7 @@ def update_single_faculty(fac_data):
 
         sql = """
             UPDATE faculty 
-            SET faculty_name = %s, department = %s, designation = %s, email = %s, phone = %s, joining_date = %s
+            SET faculty_name = %s, department = %s, designation = %s, email = %s, phone = %s, joining_date = %s, experience_years = %s
             WHERE faculty_id = %s;
         """
         values = (
@@ -393,6 +408,7 @@ def update_single_faculty(fac_data):
             fac_data["email"] if fac_data["email"] else None,
             fac_data["phone"] if fac_data["phone"] else None,
             fac_data["joining_date"] if fac_data["joining_date"] else None,
+            fac_data.get("experience_years"),
             fac_data["faculty_id"]
         )
         cursor.execute(sql, values)
@@ -451,7 +467,7 @@ def add_single_academic(aca_data):
 
         sql = """
             INSERT INTO faculty_academic (academic_id, faculty_id, ug_qualification, pg_qualification, phd_qualification, research_interest, publication_count)
-            VALUES (%s, %s, %s, %s, %s, %s, %s);
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
         """
         pub_cnt = int(aca_data["publication_count"]) if aca_data["publication_count"] and str(aca_data["publication_count"]).isdigit() else None
         values = (
@@ -534,3 +550,88 @@ def delete_single_academic(academic_id):
     except Exception as e:
         db_logger.notify_sql(locals().get('sql', ''), (academic_id,), False, 0, str(e))
         return False, f"Error: {str(e)}"
+
+def execute_advanced_query(query_type, conditions, sort_by=None, sort_order="ASC", scope="Faculty"):
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Determine if JOIN is needed
+        # Fields mapping
+        fac_fields = ['faculty_id', 'faculty_name', 'department', 'designation', 'email', 'phone', 'joining_date', 'experience_years']
+        aca_fields = ['academic_id', 'ug_qualification', 'pg_qualification', 'phd_qualification', 'research_interest', 'publication_count']
+        
+        needs_join = False
+        if scope == "Faculty Academic":
+            needs_join = True
+        else:
+            for c in conditions:
+                if c['field'] in aca_fields:
+                    needs_join = True
+
+        if sort_by in aca_fields:
+            needs_join = True
+            
+        if query_type == "Count":
+            if needs_join:
+                base_sql = "SELECT COUNT(*) as cnt FROM faculty f JOIN faculty_academic a ON f.faculty_id = a.faculty_id"
+            else:
+                base_sql = "SELECT COUNT(*) as cnt FROM faculty f"
+        else:
+            if needs_join:
+                base_sql = """SELECT f.faculty_id, f.faculty_name, f.department, f.designation, f.email, f.phone, f.joining_date, f.experience_years,
+                                     a.academic_id, a.ug_qualification, a.pg_qualification, a.phd_qualification, a.research_interest, a.publication_count
+                              FROM faculty f JOIN faculty_academic a ON f.faculty_id = a.faculty_id"""
+            else:
+                base_sql = "SELECT f.* FROM faculty f"
+
+        where_clauses = []
+        params = []
+        
+        for i, cond in enumerate(conditions):
+            logic = cond['logic'] if i > 0 else ""
+            field = cond['field']
+            op = cond['op']
+            val = cond['val']
+            
+            prefix = "a." if field in aca_fields else "f."
+            
+            if op in ('IS NULL', 'IS NOT NULL'):
+                clause = f"{logic} {prefix}{field} {op}".strip()
+            else:
+                if op == 'LIKE':
+                    val = f"%{val}%"
+                clause = f"{logic} {prefix}{field} {op} %s".strip()
+                params.append(val)
+                
+            where_clauses.append(clause)
+            
+        sql = base_sql
+        if where_clauses:
+            sql += " WHERE " + " ".join(where_clauses)
+            
+        if query_type != "Count" and sort_by:
+            prefix = "a." if sort_by in aca_fields else "f."
+            sql += f" ORDER BY {prefix}{sort_by} {sort_order}"
+            
+        sql += ";"
+        
+        cursor.execute(sql, tuple(params))
+        if query_type == "Count":
+            result = cursor.fetchone()
+            rows_returned = 1
+            ret = result['cnt']
+        else:
+            ret = cursor.fetchall()
+            rows_returned = len(ret)
+            
+        import db_logger
+        db_logger.notify_sql(sql, tuple(params), True, rows_returned)
+        
+        cursor.close()
+        conn.close()
+        return True, ret
+    except Exception as e:
+        import db_logger
+        db_logger.notify_sql(locals().get('sql', ''), tuple(params), False, 0, str(e))
+        return False, str(e)

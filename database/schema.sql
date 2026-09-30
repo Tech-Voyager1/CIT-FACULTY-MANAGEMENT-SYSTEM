@@ -21,6 +21,7 @@ CREATE TABLE faculty (
     email VARCHAR(100) DEFAULT NULL,
     phone VARCHAR(20) DEFAULT NULL,
     joining_date DATE DEFAULT NULL,
+    experience_years INT DEFAULT NULL,
     PRIMARY KEY (faculty_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
