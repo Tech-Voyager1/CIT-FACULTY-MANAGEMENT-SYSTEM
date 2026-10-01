@@ -474,7 +474,7 @@ def add_single_academic(aca_data):
 
         sql = """
             INSERT INTO faculty_academic (academic_id, faculty_id, ug_qualification, pg_qualification, phd_qualification, research_interest, publication_count)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+            VALUES (%s, %s, %s, %s, %s, %s, %s);
         """
         pub_cnt = int(aca_data["publication_count"]) if aca_data["publication_count"] and str(aca_data["publication_count"]).isdigit() else None
         values = (
