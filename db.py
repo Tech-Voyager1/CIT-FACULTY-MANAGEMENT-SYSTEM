@@ -1,11 +1,19 @@
 import os
+import sys
 import mysql.connector
 from dotenv import load_dotenv
 import db_logger
 
 
-# Load environment variables from .env file
-load_dotenv()
+def get_app_dir():
+    """Returns the base directory of the running app or executable."""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+# Load environment variables from .env file relative to app/executable directory
+load_dotenv(os.path.join(get_app_dir(), ".env"))
 
 def get_db_config():
     """Reads database configuration from environment variables."""
@@ -61,7 +69,7 @@ def setup_database_schema():
 
         if not faculty_exists or not academic_exists:
             # Execute schema.sql
-            schema_path = os.path.join("database", "schema.sql")
+            schema_path = os.path.join(get_app_dir(), "database", "schema.sql")
             if os.path.exists(schema_path):
                 with open(schema_path, "r", encoding="utf-8") as f:
                     schema_sql = f.read()
@@ -71,7 +79,7 @@ def setup_database_schema():
                         cursor.execute(stmt)
 
             # Execute seed.sql
-            seed_path = os.path.join("database", "seed.sql")
+            seed_path = os.path.join(get_app_dir(), "database", "seed.sql")
             if os.path.exists(seed_path):
                 with open(seed_path, "r", encoding="utf-8") as f:
                     seed_sql = f.read()

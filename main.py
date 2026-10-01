@@ -8,8 +8,15 @@ import db
 import db_logger
 
 
-# Ensure environment variables are loaded
-load_dotenv()
+def get_app_dir():
+    """Returns the base directory of the running app or executable."""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+# Ensure environment variables are loaded relative to app/executable directory
+load_dotenv(os.path.join(get_app_dir(), ".env"))
 
 class CITFacultyApp(tk.Tk):
     def __init__(self):
@@ -514,9 +521,15 @@ class CITFacultyApp(tk.Tk):
             self.refresh_data()
         else:
             self.status_var.set(f"DB Error: {msg}")
+            friendly_msg = (
+                "MySQL server could not be reached.\n"
+                "Please make sure MySQL Server is running.\n\n"
+                f"Error Details: {msg}\n\n"
+                "Would you like to open Database Configuration to check/update your settings in .env?"
+            )
             resp = messagebox.askyesno(
                 "MySQL Connection Failed",
-                f"Could not connect to local MySQL server:\n\n{msg}\n\nWould you like to configure your MySQL Password in .env?"
+                friendly_msg
             )
             if resp:
                 self.on_open_db_config()
@@ -1126,7 +1139,7 @@ class DBConfigDialog(tk.Toplevel):
 
     def on_save(self):
         """Saves environment parameters to .env file and triggers DB reconnect."""
-        env_file = ".env"
+        env_file = os.path.join(get_app_dir(), ".env")
 
         set_key(env_file, "DB_HOST", self.host_entry.get().strip())
         set_key(env_file, "DB_PORT", self.port_entry.get().strip())
@@ -1134,7 +1147,7 @@ class DBConfigDialog(tk.Toplevel):
         set_key(env_file, "DB_PASSWORD", self.pass_entry.get().strip())
         set_key(env_file, "DB_NAME", self.name_entry.get().strip())
 
-        load_dotenv(override=True)
+        load_dotenv(env_file, override=True)
 
         messagebox.showinfo("Config Saved", "Database configuration updated in .env file successfully.")
         if self.callback:
